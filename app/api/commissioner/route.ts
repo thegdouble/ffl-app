@@ -6,10 +6,11 @@ export const dynamic = "force-dynamic";
 type ConfigRow = { league_name: string; season: string; total_rounds: number; rounds_per_draw: number; redraw_allowed: number };
 type DivisionRow = { id: string; name: string; short_name: string };
 type StateRow = { division_id: string; round: number; pick_index: number; total_rounds: number; status: string };
+type ImportedPlayer = { id: string; firstName: string; lastName: string; position: string; nflTeam: string; adp: number };
 
 async function loadSetup() {
   const db = getD1();
-  const [config, divisions, teams, states, draws, pickCount] = await Promise.all([
+  const [config, divisions, teams, states, draws, pickCount, playerCount] = await Promise.all([
     db.prepare("SELECT league_name, season, total_rounds, rounds_per_draw, redraw_allowed FROM league_config WHERE id = 'default'").first<ConfigRow>(),
     db.prepare("SELECT id, name, short_name FROM divisions ORDER BY rowid").all<DivisionRow>(),
     db.prepare("SELECT id, division_id, name, abbreviation, draft_order FROM teams ORDER BY division_id, draft_order").all<DraftTeam>(),
@@ -17,6 +18,7 @@ async function loadSetup() {
     db.prepare(`SELECT id, division_id, block_start_round, order_json, cards_json, locked, actor, created_at
       FROM draft_draws ORDER BY division_id, block_start_round DESC`).all<DraftDraw>(),
     db.prepare("SELECT COUNT(*) AS count FROM draft_picks").first<{ count: number }>(),
+    db.prepare("SELECT COUNT(*) AS count FROM players").first<{ count: number }>(),
   ]);
   if (!config) throw new Error("League configuration is unavailable.");
   const teamMap = new Map(teams.results.map((team) => [team.id, team]));
@@ -54,11 +56,69 @@ async function loadSetup() {
       })),
     })),
     hasPicks: Number(pickCount?.count ?? 0) > 0,
+    playerCount: Number(playerCount?.count ?? 0),
   };
 }
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function parseCsvRows(csv: string) {
+  const rows: string[][] = [];
+  let field = "";
+  let row: string[] = [];
+  let quoted = false;
+  for (let index = 0; index < csv.length; index += 1) {
+    const character = csv[index];
+    if (character === '"') {
+      if (quoted && csv[index + 1] === '"') { field += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (character === "," && !quoted) {
+      row.push(field.trim()); field = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && csv[index + 1] === "\n") index += 1;
+      row.push(field.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = []; field = "";
+    } else field += character;
+  }
+  row.push(field.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+function readImportedPlayers(csv: string): ImportedPlayer[] {
+  const rows = parseCsvRows(csv.replace(/^\uFEFF/, ""));
+  if (rows.length < 2) throw new Error("Paste a CSV with a header row and at least one player.");
+  const header = rows[0].map((value) => value.trim().toLowerCase());
+  const column = (...names: string[]) => header.findIndex((value) => names.includes(value));
+  const nameIndex = column("player", "player name", "name");
+  const teamIndex = column("team", "nfl team");
+  const positionIndex = column("roster position", "position", "pos");
+  const adpIndex = column("adp", "average draft position");
+  const idIndex = column("player id", "id", "player_id");
+  if ([nameIndex, teamIndex, positionIndex, adpIndex].some((index) => index < 0)) {
+    throw new Error("CSV needs Player, Team, Roster Position (or Position), and ADP columns.");
+  }
+  const players = rows.slice(1).map((row, index) => {
+    const name = cleanText(row[nameIndex], 100);
+    const nameParts = name.split(/\s+/).filter(Boolean);
+    const suffix = /^(Jr\.?|Sr\.?|II|III|IV|V)$/i.test(nameParts.at(-1) ?? "") ? nameParts.pop() : "";
+    const last = [nameParts.pop(), suffix].filter(Boolean).join(" ");
+    const first = nameParts.join(" ");
+    const rawPosition = cleanText(row[positionIndex], 20).toUpperCase();
+    const position = rawPosition.replace(/[0-9].*$/, "").replace("D/ST", "DST");
+    const nflTeam = cleanText(row[teamIndex], 8).toUpperCase();
+    const adp = Number(row[adpIndex]);
+    const suppliedId = cleanText(idIndex >= 0 ? row[idIndex] : "", 70);
+    if (!first || !last || !position || !nflTeam || !Number.isFinite(adp)) {
+      throw new Error(`Row ${index + 2} is missing a usable name, team, position, or ADP.`);
+    }
+    return { id: suppliedId ? `import-${suppliedId}` : `import-${index + 1}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, firstName: first, lastName: last, position, nflTeam, adp };
+  });
+  if (new Set(players.map((player) => player.id)).size !== players.length) throw new Error("Each imported player needs a unique Player ID.");
+  return players;
 }
 
 export async function GET() {
@@ -121,6 +181,19 @@ export async function POST(request: Request) {
       statements.push(db.prepare("INSERT INTO audit_events (division_id, action, detail, created_at) VALUES ('league', 'teams.updated', ?, ?)")
         .bind(JSON.stringify({ teamCount: teams.length }), new Date().toISOString()));
       await db.batch(statements);
+    } else if (action === "importPlayers") {
+      const hasPicks = await db.prepare("SELECT 1 AS found FROM draft_picks LIMIT 1").first<{ found: number }>();
+      if (hasPicks) return Response.json({ error: "The player pool is locked after the first confirmed pick." }, { status: 409 });
+      const csv = cleanText(body.csv, 250000);
+      const players = readImportedPlayers(csv);
+      const now = new Date().toISOString();
+      await db.batch([
+        db.prepare("DELETE FROM players"),
+        ...players.map((player) => db.prepare("INSERT INTO players (id, first_name, last_name, position, nfl_team, adp) VALUES (?, ?, ?, ?, ?, ?)")
+          .bind(player.id, player.firstName, player.lastName, player.position, player.nflTeam, player.adp)),
+        db.prepare("INSERT INTO audit_events (division_id, action, detail, created_at) VALUES ('league', 'players.imported', ?, ?)")
+          .bind(JSON.stringify({ playerCount: players.length }), now),
+      ]);
     } else if (action === "generateDraw") {
       const divisionId = cleanText(body.divisionId, 40);
       const actor = cleanText(body.actor, 60) || "Commissioner";

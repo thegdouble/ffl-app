@@ -80,3 +80,18 @@ test("includes draft recovery controls with persistent skips and an audit trail"
   assert.match(migration, /CREATE TABLE `draft_skips`/);
   assert.match(migration, /CREATE TABLE `draft_operators`/);
 });
+
+test("includes a guarded commissioner CSV player import", async () => {
+  const [setup, commissionerApi] = await Promise.all([
+    readFile(new URL("../app/commissioner/setup.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/commissioner/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(setup, /Load the player pool/);
+  assert.match(setup, /Validate and import players/);
+  assert.match(setup, /Roster Position/);
+  assert.match(commissionerApi, /importPlayers/);
+  assert.match(commissionerApi, /readImportedPlayers/);
+  assert.match(commissionerApi, /player pool is locked after the first confirmed pick/i);
+  assert.match(commissionerApi, /players\.imported/);
+});

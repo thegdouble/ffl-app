@@ -55,6 +55,16 @@
 .team-editor-row button { width: 27px; height: 27px; border: 0; border-radius: 5px; color: #9a5360; background: #fff0f2; }
 .add-team { width: calc(100% - 24px); margin: 4px 12px 12px; padding: 9px; border: 1px dashed #bfc9d5; border-radius: 7px; color: var(--blue); background: #f7faff; font-size: 10px; font-weight: 800; }
 .locked-note { margin-top: 18px; padding: 12px; border-radius: 8px; color: #8b5b17; background: #fff5e5; font-size: 10px; font-weight: 700; }
+.import-explainer { margin: 22px 0 16px; padding: 16px; border-left: 4px solid var(--blue); border-radius: 0 8px 8px 0; background: #f2f7ff; }
+.import-explainer strong { display: block; color: var(--ink); font-size: 12px; }
+.import-explainer p { max-width: 680px; margin: 5px 0 0; color: #627088; font-size: 10px; line-height: 1.55; }
+.csv-field { display: block; }
+.csv-field > span { display: block; margin-bottom: 8px; color: #657287; font-size: 10px; font-weight: 850; letter-spacing: .7px; text-transform: uppercase; }
+.csv-field textarea { width: 100%; min-height: 245px; resize: vertical; padding: 13px; border: 1px solid #cdd5df; border-radius: 8px; outline: none; color: var(--ink); background: #fbfcfe; font-family: var(--font-geist-mono), monospace; font-size: 11px; line-height: 1.45; }
+.csv-field textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(20,103,232,.09); }
+.csv-field small { display: block; margin-top: 7px; color: #7b8798; font-size: 9px; }
+.import-summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 16px; padding: 12px 14px; border-radius: 8px; color: #627087; background: #f7f9fb; font-size: 10px; }
+.import-summary strong { color: var(--ink); font-size: 11px; }
 .valid-badge, .invalid-badge { padding: 6px 9px; border-radius: 5px; color: #18704d !important; background: #e4f7ee; }
 .invalid-badge { color: #9a5a0d !important; background: #fff0dc; }
 .draw-section { background: transparent; border: 0; box-shadow: none; padding: 0; }
@@ -97,6 +107,7 @@
   .team-editor-row { grid-template-columns: 18px minmax(110px, 1fr) 58px 68px 26px; overflow-x: auto; }
   .setup-actions { align-items: stretch; flex-direction: column; }
   .primary-action { width: 100%; }
+  .import-summary { align-items: flex-start; flex-direction: column; gap: 5px; }
   .draw-heading { margin: 0; }
   .setup-message { margin: 0 12px 12px; }
 }
