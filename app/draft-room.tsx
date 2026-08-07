@@ -291,23 +291,6 @@ export function DraftRoom({
             </div>
 
             {error && <div className="error-banner" role="alert">{error}</div>}
-            <div className={`confirm-dock ${selected ? "visible" : ""}`}>
-              {selected ? (
-                <>
-                  <div>
-                    <p>{makeupTarget ? `Makeup pick for ${makeupTarget.teamName} · Round ${makeupTarget.round}.${makeupTarget.pickNumber}` : `Confirm for ${data.state.currentTeam?.name}`}</p>
-                    <strong>{selected.firstName} {selected.lastName}</strong>
-                    <span>{selected.position} · {selected.nflTeam} · ADP {selected.adp.toFixed(1)}</span>
-                  </div>
-                  <div className="confirm-actions">
-                    <button className="cancel-button" onClick={() => { setSelected(null); setMakeupTarget(null); }} disabled={busy}>Cancel</button>
-                    <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || (!makeupTarget && (!data.state.currentTeam || data.state.draw.required))}>
-                      {busy ? "Confirming…" : makeupTarget ? "Confirm makeup" : "Confirm pick"}
-                    </button>
-                  </div>
-                </>
-              ) : <p>Select a player to review and confirm the pick.</p>}
-            </div>
           </section>
 
           <aside className="recent-panel">
@@ -331,6 +314,25 @@ export function DraftRoom({
             <div className="audit-list"><p className="recovery-label">Audit trail</p>{data.audit.slice(0, 6).map((event) => <div key={event.id}><strong>{event.action.replaceAll(".", " ")}</strong><span>{new Date(event.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span></div>)}</div>
             <div className="operator-tip"><span>⌁</span><p><strong>Public boards stay neutral.</strong> Search results and ADP are visible only here.</p></div>
           </aside>
+          {selected && (
+            <div className="confirm-modal-backdrop" role="presentation" onMouseDown={() => !busy && (setSelected(null), setMakeupTarget(null))}>
+              <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-pick-title" onMouseDown={(event) => event.stopPropagation()}>
+                <p className="eyebrow">{makeupTarget ? `Makeup pick · Round ${makeupTarget.round}.${makeupTarget.pickNumber}` : `Confirm for ${data.state.currentTeam?.name}`}</p>
+                <h2 id="confirm-pick-title">Confirm this pick</h2>
+                <div className="modal-player">
+                  <span className={`position-dot p-${selected.position.toLowerCase()}`}>{selected.position.slice(0, 1)}</span>
+                  <div><strong>{selected.firstName} {selected.lastName}</strong><span>{selected.position} · {selected.nflTeam} · ADP {selected.adp.toFixed(1)}</span></div>
+                </div>
+                <p className="modal-note">{makeupTarget ? `${makeupTarget.teamName} will receive this makeup pick. The active draft clock will not change.` : "This player will be removed from this division’s available pool."}</p>
+                <div className="confirm-actions">
+                  <button className="cancel-button" onClick={() => { setSelected(null); setMakeupTarget(null); }} disabled={busy}>Back</button>
+                  <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || (!makeupTarget && (!data.state.currentTeam || data.state.draw.required))}>
+                    {busy ? "Confirming…" : makeupTarget ? "Confirm makeup" : "Confirm pick"}
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
         </section>
       ) : (
         <section className="public-board">

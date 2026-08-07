@@ -25,6 +25,8 @@ test("includes the draft workflow and social card", async () => {
   ]);
 
   assert.match(draftRoom, /Confirm pick/);
+  assert.match(draftRoom, /confirm-modal-backdrop/);
+  assert.match(draftRoom, /aria-modal="true"/);
   assert.match(draftRoom, /Draft board/);
   assert.match(draftRoom, /ADP: low to high/);
   assert.match(draftRoom, /setInterval\(\(\) => void load\(true\), 900\)/);
@@ -32,6 +34,7 @@ test("includes the draft workflow and social card", async () => {
   assert.match(layout, /\/og\.png/);
   assert.match(layout, /x-forwarded-host/);
   assert.match(css, /\.board-mode/);
+  assert.match(css, /\.confirm-modal/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await access(new URL("../public/og.png", import.meta.url));
 });
