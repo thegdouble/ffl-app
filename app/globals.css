@@ -40,6 +40,7 @@ button { cursor: pointer; }
 .segmented { display: flex; padding: 4px; gap: 3px; background: rgba(255,255,255,.08); border-radius: 10px; }
 .segmented button { padding: 9px 12px; border: 0; background: transparent; color: #aebdd4; font-size: 12px; font-weight: 800; border-radius: 7px; }
 .segmented button.active { color: var(--navy); background: white; }
+.commissioner-link { padding: 9px 11px; border: 1px solid rgba(255,255,255,.18); border-radius: 7px; color: white; text-decoration: none; font-size: 11px; font-weight: 800; }
 
 .division-tabs { height: 64px; display: flex; align-items: stretch; padding: 0 28px; gap: 2px; background: white; border-bottom: 1px solid var(--line); }
 .division-tabs button { min-width: 230px; display: flex; align-items: center; gap: 11px; padding: 0 18px; border: 0; border-bottom: 3px solid transparent; background: white; color: var(--muted); font-size: 13px; font-weight: 750; }
@@ -66,6 +67,11 @@ button { cursor: pointer; }
 .order-list div.current { margin: 0 -8px; padding-left: 12px; padding-right: 12px; color: white; background: rgba(183,243,74,.1); border-left: 2px solid var(--lime); }
 .order-list div.current span { background: var(--lime); color: var(--navy); font-weight: 900; }
 .secondary-button { width: 100%; margin-top: 20px; padding: 10px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: #c7d3e6; border-radius: 8px; font-size: 11px; font-weight: 800; }
+.draw-required { display: grid; justify-items: center; padding: 22px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.04); text-align: center; }
+.draw-required > span { font-size: 34px; color: var(--lime); }
+.draw-required strong { margin-top: 7px; font-size: 12px; }
+.draw-required p { margin: 6px 0 13px; color: #93a4bd; font-size: 9px; line-height: 1.5; }
+.draw-required a { padding: 8px 10px; border-radius: 6px; color: var(--navy); background: var(--lime); text-decoration: none; font-size: 9px; font-weight: 900; }
 
 .search-panel { padding: 22px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -203,4 +209,3 @@ button.player-row:hover { background: #f7faff; }
   .announcement { padding: 32px 20px; }
   .announcement h2 { font-size: 30px; }
 }
-

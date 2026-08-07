@@ -1,11 +1,12 @@
+import { drawBlockStart, teamsForRound, type DraftDraw, type DraftTeam } from "../../../db/draft";
 import { ensureDatabase, getD1 } from "../../../db/runtime";
 
 export const dynamic = "force-dynamic";
 
 type DivisionRow = { id: string; name: string; short_name: string };
-type TeamRow = { id: string; division_id: string; name: string; abbreviation: string; draft_order: number };
 type PlayerRow = { id: string; first_name: string; last_name: string; position: string; nfl_team: string; adp: number };
 type StateRow = { division_id: string; round: number; pick_index: number; total_rounds: number; status: string };
+type ConfigRow = { league_name: string; season: string; total_rounds: number; rounds_per_draw: number; redraw_allowed: number };
 type PickRow = {
   id: number;
   division_id: string;
@@ -23,22 +24,17 @@ type PickRow = {
 };
 
 function selectedDivision(request: Request) {
-  const requested = new URL(request.url).searchParams.get("division");
-  return requested === "rear" ? "rear" : "front";
-}
-
-function orderedTeams(teams: TeamRow[], round: number) {
-  const base = [...teams].sort((a, b) => a.draft_order - b.draft_order);
-  return round % 2 === 0 ? base.reverse() : base;
+  const requested = new URL(request.url).searchParams.get("division")?.trim();
+  return requested && /^[a-z0-9-]+$/.test(requested) ? requested : "front";
 }
 
 async function loadState(divisionId: string) {
   const db = getD1();
-  const [division, divisionsResult, teamsResult, playersResult, state, picksResult] = await Promise.all([
+  const [division, divisionsResult, teamsResult, playersResult, state, picksResult, config] = await Promise.all([
     db.prepare("SELECT id, name, short_name FROM divisions WHERE id = ?").bind(divisionId).first<DivisionRow>(),
-    db.prepare("SELECT id, name, short_name FROM divisions ORDER BY id").all<DivisionRow>(),
+    db.prepare("SELECT id, name, short_name FROM divisions ORDER BY rowid").all<DivisionRow>(),
     db.prepare("SELECT id, division_id, name, abbreviation, draft_order FROM teams WHERE division_id = ? ORDER BY draft_order")
-      .bind(divisionId).all<TeamRow>(),
+      .bind(divisionId).all<DraftTeam>(),
     db.prepare(`SELECT p.id, p.first_name, p.last_name, p.position, p.nfl_team, p.adp
       FROM players p
       WHERE NOT EXISTS (
@@ -55,15 +51,23 @@ async function loadState(divisionId: string) {
       JOIN players p ON p.id = dp.player_id
       WHERE dp.division_id = ?
       ORDER BY dp.id DESC`).bind(divisionId).all<PickRow>(),
+    db.prepare("SELECT league_name, season, total_rounds, rounds_per_draw, redraw_allowed FROM league_config WHERE id = 'default'")
+      .first<ConfigRow>(),
   ]);
 
-  if (!division || !state) throw new Error("Draft room not found.");
+  if (!division || !state || !config) throw new Error("Draft room not found.");
   const teams = teamsResult.results;
-  const order = orderedTeams(teams, state.round);
-  const currentTeam = state.status === "complete" ? null : order[state.pick_index] ?? null;
+  const blockStartRound = drawBlockStart(state.round);
+  const draw = await db.prepare(`SELECT id, division_id, block_start_round, order_json, cards_json, locked, actor, created_at
+    FROM draft_draws WHERE division_id = ? AND block_start_round = ?`)
+    .bind(divisionId, blockStartRound).first<DraftDraw>();
+  const order = teamsForRound(teams, state.round, draw);
+  const currentTeam = state.status !== "live" ? null : order[state.pick_index] ?? null;
+  const teamMap = new Map(teams.map((team) => [team.id, team]));
+  const assignments = draw ? (JSON.parse(draw.cards_json) as Array<{ teamId: string; card: string; rank: string; suit: string; order: number }>) : [];
 
   return {
-    league: { name: "NFL Poker and Liquor", season: "2026 Prototype" },
+    league: { name: config.league_name, season: config.season },
     division: { id: division.id, name: division.name, shortName: division.short_name },
     divisions: divisionsResult.results.map((item) => ({ id: item.id, name: item.name, shortName: item.short_name })),
     teams: teams.map((team) => ({
@@ -87,6 +91,16 @@ async function loadState(divisionId: string) {
       status: state.status,
       currentTeam: currentTeam ? { id: currentTeam.id, name: currentTeam.name, abbreviation: currentTeam.abbreviation } : null,
       roundOrder: order.map((team) => ({ id: team.id, name: team.name, abbreviation: team.abbreviation })),
+      draw: {
+        required: state.status === "awaiting_draw" || !draw?.locked,
+        locked: Boolean(draw?.locked),
+        blockStartRound,
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          teamName: teamMap.get(assignment.teamId)?.name ?? "Unknown team",
+          teamAbbreviation: teamMap.get(assignment.teamId)?.abbreviation ?? "—",
+        })),
+      },
     },
     picks: picksResult.results.map((pick) => ({
       id: pick.id,
@@ -126,22 +140,30 @@ export async function POST(request: Request) {
   try {
     await ensureDatabase();
     const body = (await request.json()) as { divisionId?: string; playerId?: string };
-    const divisionId = body.divisionId === "rear" ? "rear" : body.divisionId === "front" ? "front" : "";
+    const divisionId = body.divisionId?.trim() ?? "";
     const playerId = body.playerId?.trim() ?? "";
-    if (!divisionId || !playerId) {
+    if (!divisionId || !/^[a-z0-9-]+$/.test(divisionId) || !playerId) {
       return Response.json({ error: "Division and player are required." }, { status: 400 });
     }
 
     const db = getD1();
     const state = await db.prepare("SELECT division_id, round, pick_index, total_rounds, status FROM draft_state WHERE division_id = ?")
       .bind(divisionId).first<StateRow>();
-    if (!state || state.status !== "live") {
+    if (!state || state.status === "complete") {
       return Response.json({ error: "This draft is not accepting picks." }, { status: 409 });
     }
 
     const teamsResult = await db.prepare("SELECT id, division_id, name, abbreviation, draft_order FROM teams WHERE division_id = ? ORDER BY draft_order")
-      .bind(divisionId).all<TeamRow>();
-    const order = orderedTeams(teamsResult.results, state.round);
+      .bind(divisionId).all<DraftTeam>();
+    const blockStartRound = drawBlockStart(state.round);
+    const draw = await db.prepare(`SELECT id, division_id, block_start_round, order_json, cards_json, locked, actor, created_at
+      FROM draft_draws WHERE division_id = ? AND block_start_round = ?`)
+      .bind(divisionId, blockStartRound).first<DraftDraw>();
+    if (!draw?.locked || state.status === "awaiting_draw") {
+      return Response.json({ error: `Lock the card draw for rounds ${blockStartRound}–${Math.min(blockStartRound + 1, state.total_rounds)} before entering picks.` }, { status: 409 });
+    }
+
+    const order = teamsForRound(teamsResult.results, state.round, draw);
     const currentTeam = order[state.pick_index];
     if (!currentTeam) {
       return Response.json({ error: "The current draft slot is invalid." }, { status: 409 });
@@ -156,7 +178,11 @@ export async function POST(request: Request) {
     const completesRound = nextIndex >= order.length;
     const nextRound = completesRound ? state.round + 1 : state.round;
     const nextPickIndex = completesRound ? 0 : nextIndex;
-    const nextStatus = nextRound > state.total_rounds ? "complete" : "live";
+    const nextStatus = nextRound > state.total_rounds
+      ? "complete"
+      : completesRound && nextRound % 2 === 1
+        ? "awaiting_draw"
+        : "live";
     const detail = JSON.stringify({
       teamId: currentTeam.id,
       teamName: currentTeam.name,
@@ -164,6 +190,7 @@ export async function POST(request: Request) {
       playerName: `${player.first_name} ${player.last_name}`,
       round: state.round,
       pickNumber: state.pick_index + 1,
+      drawId: draw.id,
     });
 
     await db.batch([
@@ -188,4 +215,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

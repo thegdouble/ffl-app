@@ -15,7 +15,7 @@ export default async function Home({
   return (
     <DraftRoom
       initialView={params.view === "board" ? "board" : "operator"}
-      initialDivision={params.division === "rear" ? "rear" : "front"}
+      initialDivision={params.division?.trim() || "front"}
     />
   );
 }

@@ -59,6 +59,14 @@ export async function ensureDatabase() {
         name TEXT NOT NULL,
         short_name TEXT NOT NULL
       )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS league_config (
+        id TEXT PRIMARY KEY,
+        league_name TEXT NOT NULL,
+        season TEXT NOT NULL,
+        total_rounds INTEGER NOT NULL DEFAULT 20,
+        rounds_per_draw INTEGER NOT NULL DEFAULT 2,
+        redraw_allowed INTEGER NOT NULL DEFAULT 0
+      )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS teams (
         id TEXT PRIMARY KEY,
         division_id TEXT NOT NULL,
@@ -94,6 +102,18 @@ export async function ensureDatabase() {
         ON draft_picks (division_id, player_id)`),
       db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS draft_picks_slot_idx
         ON draft_picks (division_id, round, pick_number)`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS draft_draws (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        division_id TEXT NOT NULL,
+        block_start_round INTEGER NOT NULL,
+        order_json TEXT NOT NULL,
+        cards_json TEXT NOT NULL,
+        locked INTEGER NOT NULL DEFAULT 0,
+        actor TEXT NOT NULL DEFAULT 'Commissioner',
+        created_at TEXT NOT NULL
+      )`),
+      db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS draft_draws_division_block_idx
+        ON draft_draws (division_id, block_start_round)`),
       db.prepare(`CREATE TABLE IF NOT EXISTS audit_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         division_id TEXT NOT NULL,
@@ -104,6 +124,7 @@ export async function ensureDatabase() {
     ]);
 
     await db.batch([
+      db.prepare("INSERT OR IGNORE INTO league_config (id, league_name, season, total_rounds, rounds_per_draw, redraw_allowed) VALUES ('default', 'NFL Poker and Liquor', '2026 Prototype', 20, 2, 0)"),
       db.prepare("INSERT OR IGNORE INTO divisions (id, name, short_name) VALUES (?, ?, ?)")
         .bind("front", "Liquor in the Front", "LIQUOR"),
       db.prepare("INSERT OR IGNORE INTO divisions (id, name, short_name) VALUES (?, ?, ?)")
@@ -116,10 +137,14 @@ export async function ensureDatabase() {
         db.prepare("INSERT OR IGNORE INTO players (id, first_name, last_name, position, nfl_team, adp) VALUES (?, ?, ?, ?, ?, ?)")
           .bind(...player),
       ),
-      db.prepare("INSERT OR IGNORE INTO draft_state (division_id, round, pick_index, total_rounds, status) VALUES (?, 1, 0, 6, 'live')")
+      db.prepare("INSERT OR IGNORE INTO draft_state (division_id, round, pick_index, total_rounds, status) VALUES (?, 1, 0, 20, 'awaiting_draw')")
         .bind("front"),
-      db.prepare("INSERT OR IGNORE INTO draft_state (division_id, round, pick_index, total_rounds, status) VALUES (?, 1, 0, 6, 'live')")
+      db.prepare("INSERT OR IGNORE INTO draft_state (division_id, round, pick_index, total_rounds, status) VALUES (?, 1, 0, 20, 'awaiting_draw')")
         .bind("rear"),
+      db.prepare(`UPDATE draft_state SET total_rounds = 20, status = 'awaiting_draw'
+        WHERE round = 1 AND pick_index = 0 AND NOT EXISTS (
+          SELECT 1 FROM draft_picks WHERE draft_picks.division_id = draft_state.division_id
+        )`),
     ]);
   })().catch((error) => {
     initialization = null;
@@ -128,4 +153,3 @@ export async function ensureDatabase() {
 
   return initialization;
 }
-

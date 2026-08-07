@@ -35,3 +35,28 @@ test("includes the draft workflow and social card", async () => {
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await access(new URL("../public/og.png", import.meta.url));
 });
+
+test("includes configurable league setup and audited two-round card draws", async () => {
+  const [setup, commissionerApi, draftEngine, draftApi, migration] = await Promise.all([
+    readFile(new URL("../app/commissioner/setup.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/commissioner/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/draft.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/draft/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0001_youthful_doctor_spectrum.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(setup, /Draft rounds/);
+  assert.match(setup, /min="20" max="25"/);
+  assert.match(setup, /Division for/);
+  assert.match(setup, /Deal cards/);
+  assert.match(setup, /Lock order/);
+  assert.match(commissionerApi, /new Set\(counts\)\.size !== 1/);
+  assert.match(commissionerApi, /draw\.generated/);
+  assert.match(commissionerApi, /draw\.locked/);
+  assert.match(draftEngine, /crypto\.getRandomValues/);
+  assert.match(draftEngine, /13 - overflow/);
+  assert.match(draftApi, /awaiting_draw/);
+  assert.match(draftApi, /teamsForRound/);
+  assert.match(migration, /CREATE TABLE `draft_draws`/);
+  assert.match(migration, /CREATE TABLE `league_config`/);
+});

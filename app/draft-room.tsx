@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 type Division = { id: string; name: string; shortName: string };
 type Team = { id: string; name: string; abbreviation: string; draftOrder: number };
@@ -27,6 +28,12 @@ type DraftData = {
     status: string;
     currentTeam: { id: string; name: string; abbreviation: string } | null;
     roundOrder: { id: string; name: string; abbreviation: string }[];
+    draw: {
+      required: boolean;
+      locked: boolean;
+      blockStartRound: number;
+      assignments: Array<{ teamId: string; teamName: string; teamAbbreviation: string; card: string; order: number }>;
+    };
   };
   picks: Pick[];
 };
@@ -38,7 +45,7 @@ export function DraftRoom({
   initialDivision,
 }: {
   initialView: "operator" | "board";
-  initialDivision: "front" | "rear";
+  initialDivision: string;
 }) {
   const [data, setData] = useState<DraftData | null>(null);
   const [divisionId, setDivisionId] = useState(initialDivision);
@@ -159,6 +166,7 @@ export function DraftRoom({
             <button className={view === "operator" ? "active" : ""} onClick={() => setView("operator")}>Operator</button>
             <button className={view === "board" ? "active" : ""} onClick={() => setView("board")}>Draft board</button>
           </div>
+          <Link className="commissioner-link" href="/commissioner">Setup</Link>
         </div>
       </header>
 
@@ -193,15 +201,19 @@ export function DraftRoom({
             <div className="panel-label">On the clock</div>
             <div className="round-pill">Round {data.state.round} of {data.state.totalRounds}</div>
             <div className="clock-team-mark">{data.state.currentTeam?.abbreviation ?? "—"}</div>
-            <h2>{data.state.currentTeam?.name ?? "Draft complete"}</h2>
-            <p>Pick {totalPick} · Card order locked</p>
-            <div className="order-list">
-              {data.state.roundOrder.map((team, index) => (
-                <div key={team.id} className={index === data.state.pickIndex ? "current" : index < data.state.pickIndex ? "done" : ""}>
-                  <span>{index + 1}</span><strong>{team.abbreviation}</strong><small>{team.name}</small>
-                </div>
-              ))}
-            </div>
+            <h2>{data.state.draw.required ? "Card draw needed" : data.state.currentTeam?.name ?? "Draft complete"}</h2>
+            <p>{data.state.draw.required ? `Rounds ${data.state.draw.blockStartRound}–${Math.min(data.state.draw.blockStartRound + 1, data.state.totalRounds)} are waiting for an order` : `Pick ${totalPick} · Card order locked`}</p>
+            {data.state.draw.required ? (
+              <div className="draw-required"><span>♠</span><strong>Operator action required</strong><p>Deal and lock this division&apos;s cards before entering the next pick.</p><Link href="/commissioner">Open commissioner setup</Link></div>
+            ) : (
+              <div className="order-list">
+                {data.state.roundOrder.map((team, index) => (
+                  <div key={team.id} className={index === data.state.pickIndex ? "current" : index < data.state.pickIndex ? "done" : ""}>
+                    <span>{index + 1}</span><strong>{team.abbreviation}</strong><small>{team.name}</small>
+                  </div>
+                ))}
+              </div>
+            )}
             <button className="secondary-button" type="button">Pause draft</button>
           </aside>
 
@@ -256,7 +268,7 @@ export function DraftRoom({
                   </div>
                   <div className="confirm-actions">
                     <button className="cancel-button" onClick={() => setSelected(null)} disabled={busy}>Cancel</button>
-                    <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || !data.state.currentTeam}>
+                    <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || !data.state.currentTeam || data.state.draw.required}>
                       {busy ? "Confirming…" : "Confirm pick"}
                     </button>
                   </div>
@@ -284,7 +296,7 @@ export function DraftRoom({
         <section className="public-board">
           <div className="board-hero">
             <div><p className="eyebrow">{data.division.name}</p><h2>Round {data.state.round}</h2><span>Pick {totalPick}</span></div>
-            <div className="now-picking"><p>Now picking</p><strong>{data.state.currentTeam?.name ?? "Draft complete"}</strong><span>{data.state.currentTeam?.abbreviation ?? "—"}</span></div>
+            <div className="now-picking"><p>{data.state.draw.required ? "Next step" : "Now picking"}</p><strong>{data.state.draw.required ? "Card draw pending" : data.state.currentTeam?.name ?? "Draft complete"}</strong><span>{data.state.currentTeam?.abbreviation ?? "♠"}</span></div>
             <div className="board-status"><span className="pulse" />Live draft board</div>
           </div>
           <div className="draft-grid">
