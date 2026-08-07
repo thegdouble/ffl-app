@@ -27,6 +27,8 @@ test("includes the draft workflow and social card", async () => {
   assert.match(draftRoom, /Confirm pick/);
   assert.match(draftRoom, /confirm-modal-backdrop/);
   assert.match(draftRoom, /aria-modal="true"/);
+  assert.match(draftRoom, /const boardTeams = data\.state\.roundOrder/);
+  assert.match(draftRoom, /\{boardTeams\.map\(\(team\)/);
   assert.match(draftRoom, /Draft board/);
   assert.match(draftRoom, /ADP: low to high/);
   assert.match(draftRoom, /setInterval\(\(\) => void load\(true\), 900\)/);

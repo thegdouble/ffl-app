@@ -177,6 +177,9 @@ export function DraftRoom({
 
   const totalPick = (data.state.round - 1) * data.teams.length + data.state.pickIndex + 1;
   const picksByTeam = new Map(data.teams.map((team) => [team.id, data.picks.filter((pick) => pick.teamId === team.id)]));
+  const boardTeams = data.state.roundOrder.length === data.teams.length
+    ? data.state.roundOrder.map((orderedTeam) => data.teams.find((team) => team.id === orderedTeam.id)).filter((team): team is Team => Boolean(team))
+    : data.teams;
 
   return (
     <main className={`app-shell ${view === "board" ? "board-mode" : ""}`}>
@@ -342,7 +345,7 @@ export function DraftRoom({
             <div className="board-status"><span className="pulse" />Live draft board</div>
           </div>
           <div className="draft-grid">
-            {data.teams.map((team) => (
+            {boardTeams.map((team) => (
               <article key={team.id} className={data.state.currentTeam?.id === team.id ? "on-clock" : ""}>
                 <header><span>{team.abbreviation}</span><strong>{team.name}</strong></header>
                 <div className="team-picks">
