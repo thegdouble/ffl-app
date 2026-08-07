@@ -15,6 +15,13 @@
       "when": 1786116346073,
       "tag": "0001_youthful_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786121056537,
+      "tag": "0002_striped_guardian",
+      "breakpoints": true
     }
   ]
 }

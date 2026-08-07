@@ -60,3 +60,23 @@ test("includes configurable league setup and audited two-round card draws", asyn
   assert.match(migration, /CREATE TABLE `draft_draws`/);
   assert.match(migration, /CREATE TABLE `league_config`/);
 });
+
+test("includes draft recovery controls with persistent skips and an audit trail", async () => {
+  const [draftRoom, draftApi, schema, migration] = await Promise.all([
+    readFile(new URL("../app/draft-room.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/draft/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0002_striped_guardian.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(draftRoom, /Skip current pick/);
+  assert.match(draftRoom, /Outstanding makeup picks/);
+  assert.match(draftRoom, /Take over/);
+  assert.match(draftApi, /makeup\.confirmed/);
+  assert.match(draftApi, /pick\.skipped/);
+  assert.match(draftApi, /operator\.taken_over/);
+  assert.match(schema, /draftSkips/);
+  assert.match(schema, /draftOperators/);
+  assert.match(migration, /CREATE TABLE `draft_skips`/);
+  assert.match(migration, /CREATE TABLE `draft_operators`/);
+});

@@ -15,6 +15,8 @@ type Pick = {
   teamAbbreviation: string;
   player: { firstName: string; lastName: string; position: string; nflTeam: string };
 };
+type Skip = { id: number; teamId: string; teamName: string; teamAbbreviation: string; round: number; pickNumber: number; status: string; createdAt: string };
+type AuditEvent = { id: number; action: string; detail: string; createdAt: string };
 type DraftData = {
   league: { name: string; season: string };
   division: Division;
@@ -28,6 +30,7 @@ type DraftData = {
     status: string;
     currentTeam: { id: string; name: string; abbreviation: string } | null;
     roundOrder: { id: string; name: string; abbreviation: string }[];
+    operator: { name: string; updatedAt: string | null };
     draw: {
       required: boolean;
       locked: boolean;
@@ -36,6 +39,8 @@ type DraftData = {
     };
   };
   picks: Pick[];
+  skips: Skip[];
+  audit: AuditEvent[];
 };
 
 const positions = ["ALL", "QB", "RB", "WR", "TE", "DL", "LB", "DB", "K"];
@@ -54,6 +59,7 @@ export function DraftRoom({
   const [position, setPosition] = useState("ALL");
   const [teamFilter, setTeamFilter] = useState("ALL");
   const [selected, setSelected] = useState<Player | null>(null);
+  const [makeupTarget, setMakeupTarget] = useState<Skip | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(true);
@@ -115,7 +121,7 @@ export function DraftRoom({
       const response = await fetch("/api/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ divisionId: data.division.id, playerId: selected.id }),
+        body: JSON.stringify({ divisionId: data.division.id, playerId: selected.id, makeupSkipId: makeupTarget?.id }),
       });
       const next = (await response.json()) as DraftData & { error?: string };
       if (!response.ok) throw new Error(next.error || "Unable to confirm pick.");
@@ -124,11 +130,35 @@ export function DraftRoom({
       window.setTimeout(() => setAnnouncement(null), 4200);
       setData(next);
       setSelected(null);
+      setMakeupTarget(null);
       setQuery("");
       setPosition("ALL");
       setTeamFilter("ALL");
     } catch (pickError) {
       setError(pickError instanceof Error ? pickError.message : "Unable to confirm pick.");
+      await load(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runAction(action: "pause" | "resume" | "skip" | "undo" | "takeover") {
+    if (!data) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ divisionId: data.division.id, action, operatorName: "Commissioner" }),
+      });
+      const next = (await response.json()) as DraftData & { error?: string };
+      if (!response.ok) throw new Error(next.error || "Unable to update the draft.");
+      setData(next);
+      setSelected(null);
+      setMakeupTarget(null);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Unable to update the draft.");
       await load(true);
     } finally {
       setBusy(false);
@@ -178,6 +208,7 @@ export function DraftRoom({
             onClick={() => {
               setData(null);
               setSelected(null);
+              setMakeupTarget(null);
               setDivisionId(division.id);
             }}
           >
@@ -198,11 +229,11 @@ export function DraftRoom({
       {view === "operator" ? (
         <section className="operator-grid">
           <aside className="clock-panel">
-            <div className="panel-label">On the clock</div>
+            <div className="panel-label">{data.state.status === "paused" ? "Draft paused" : "On the clock"}</div>
             <div className="round-pill">Round {data.state.round} of {data.state.totalRounds}</div>
             <div className="clock-team-mark">{data.state.currentTeam?.abbreviation ?? "—"}</div>
-            <h2>{data.state.draw.required ? "Card draw needed" : data.state.currentTeam?.name ?? "Draft complete"}</h2>
-            <p>{data.state.draw.required ? `Rounds ${data.state.draw.blockStartRound}–${Math.min(data.state.draw.blockStartRound + 1, data.state.totalRounds)} are waiting for an order` : `Pick ${totalPick} · Card order locked`}</p>
+            <h2>{data.state.status === "paused" ? "Paused by operator" : data.state.draw.required ? "Card draw needed" : data.state.currentTeam?.name ?? "Draft complete"}</h2>
+            <p>{data.state.status === "paused" ? "No scheduled picks can be entered until resumed." : data.state.draw.required ? `Rounds ${data.state.draw.blockStartRound}–${Math.min(data.state.draw.blockStartRound + 1, data.state.totalRounds)} are waiting for an order` : `Pick ${totalPick} · Card order locked`}</p>
             {data.state.draw.required ? (
               <div className="draw-required"><span>♠</span><strong>Operator action required</strong><p>Deal and lock this division&apos;s cards before entering the next pick.</p><Link href="/commissioner">Open commissioner setup</Link></div>
             ) : (
@@ -214,7 +245,9 @@ export function DraftRoom({
                 ))}
               </div>
             )}
-            <button className="secondary-button" type="button">Pause draft</button>
+            <div className="operator-control"><span>Operator: {data.state.operator.name}</span><button onClick={() => void runAction("takeover")} disabled={busy}>Take over</button></div>
+            <button className="secondary-button" type="button" disabled={busy || data.state.draw.required || data.state.status === "complete"} onClick={() => void runAction(data.state.status === "paused" ? "resume" : "pause")}>{data.state.status === "paused" ? "Resume draft" : "Pause draft"}</button>
+            <button className="skip-button" type="button" disabled={busy || data.state.status !== "live" || data.state.draw.required} onClick={() => void runAction("skip")}>Skip current pick</button>
           </aside>
 
           <section className="search-panel">
@@ -249,7 +282,7 @@ export function DraftRoom({
             <div className="player-table" role="list" aria-label="Available players">
               <div className="player-row table-head"><span>Player</span><span>Pos</span><span>Team</span><span>ADP</span><span /></div>
               {filteredPlayers.map((player) => (
-                <button key={player.id} className={`player-row ${selected?.id === player.id ? "selected" : ""}`} onClick={() => setSelected(player)} role="listitem">
+                <button key={player.id} disabled={!data.state.currentTeam && !makeupTarget} className={`player-row ${selected?.id === player.id ? "selected" : ""}`} onClick={() => setSelected(player)} role="listitem">
                   <span className="player-name"><span className={`position-dot p-${player.position.toLowerCase()}`}>{player.position.slice(0, 1)}</span><strong>{player.firstName} {player.lastName}</strong></span>
                   <span>{player.position}</span><span>{player.nflTeam}</span><span>{player.adp.toFixed(1)}</span><span className="select-arrow">→</span>
                 </button>
@@ -262,14 +295,14 @@ export function DraftRoom({
               {selected ? (
                 <>
                   <div>
-                    <p>Confirm for {data.state.currentTeam?.name}</p>
+                    <p>{makeupTarget ? `Makeup pick for ${makeupTarget.teamName} · Round ${makeupTarget.round}.${makeupTarget.pickNumber}` : `Confirm for ${data.state.currentTeam?.name}`}</p>
                     <strong>{selected.firstName} {selected.lastName}</strong>
                     <span>{selected.position} · {selected.nflTeam} · ADP {selected.adp.toFixed(1)}</span>
                   </div>
                   <div className="confirm-actions">
-                    <button className="cancel-button" onClick={() => setSelected(null)} disabled={busy}>Cancel</button>
-                    <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || !data.state.currentTeam || data.state.draw.required}>
-                      {busy ? "Confirming…" : "Confirm pick"}
+                    <button className="cancel-button" onClick={() => { setSelected(null); setMakeupTarget(null); }} disabled={busy}>Cancel</button>
+                    <button className="confirm-button" onClick={() => void confirmPick()} disabled={busy || (!makeupTarget && (!data.state.currentTeam || data.state.draw.required))}>
+                      {busy ? "Confirming…" : makeupTarget ? "Confirm makeup" : "Confirm pick"}
                     </button>
                   </div>
                 </>
@@ -278,8 +311,14 @@ export function DraftRoom({
           </section>
 
           <aside className="recent-panel">
-            <div className="section-heading compact"><div><p className="eyebrow">Live log</p><h2>Recent picks</h2></div><button>View all</button></div>
+            <div className="section-heading compact"><div><p className="eyebrow">Recovery console</p><h2>Draft control</h2></div><button disabled={busy || data.picks.length === 0} onClick={() => void runAction("undo")}>Undo latest</button></div>
+            <div className="makeup-list">
+              <p className="recovery-label">Outstanding makeup picks</p>
+              {data.skips.filter((skip) => skip.status === "open").map((skip) => <button key={skip.id} className={makeupTarget?.id === skip.id ? "active" : ""} onClick={() => { setMakeupTarget(skip); setSelected(null); }}><span>{skip.round}.{skip.pickNumber}</span><strong>{skip.teamName}</strong><small>{skip.teamAbbreviation}</small></button>)}
+              {data.skips.every((skip) => skip.status !== "open") && <p className="no-makeups">No outstanding picks.</p>}
+            </div>
             <div className="recent-list">
+              <p className="recovery-label">Recent picks</p>
               {data.picks.slice(0, 8).map((pick) => (
                 <div key={pick.id} className="recent-pick">
                   <span className="pick-number">{pick.round}.{pick.pickNumber}</span>
@@ -289,6 +328,7 @@ export function DraftRoom({
               ))}
               {data.picks.length === 0 && <div className="empty-card"><strong>No picks yet</strong><span>The first confirmed pick will appear here.</span></div>}
             </div>
+            <div className="audit-list"><p className="recovery-label">Audit trail</p>{data.audit.slice(0, 6).map((event) => <div key={event.id}><strong>{event.action.replaceAll(".", " ")}</strong><span>{new Date(event.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span></div>)}</div>
             <div className="operator-tip"><span>⌁</span><p><strong>Public boards stay neutral.</strong> Search results and ADP are visible only here.</p></div>
           </aside>
         </section>

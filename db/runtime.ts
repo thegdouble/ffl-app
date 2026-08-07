@@ -114,6 +114,24 @@ export async function ensureDatabase() {
       )`),
       db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS draft_draws_division_block_idx
         ON draft_draws (division_id, block_start_round)`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS draft_skips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        division_id TEXT NOT NULL,
+        team_id TEXT NOT NULL,
+        round INTEGER NOT NULL,
+        pick_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        filled_pick_id INTEGER,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT
+      )`),
+      db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS draft_skips_slot_idx
+        ON draft_skips (division_id, round, pick_number)`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS draft_operators (
+        division_id TEXT PRIMARY KEY,
+        operator_name TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS audit_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         division_id TEXT NOT NULL,

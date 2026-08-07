@@ -67,6 +67,10 @@ button { cursor: pointer; }
 .order-list div.current { margin: 0 -8px; padding-left: 12px; padding-right: 12px; color: white; background: rgba(183,243,74,.1); border-left: 2px solid var(--lime); }
 .order-list div.current span { background: var(--lime); color: var(--navy); font-weight: 900; }
 .secondary-button { width: 100%; margin-top: 20px; padding: 10px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: #c7d3e6; border-radius: 8px; font-size: 11px; font-weight: 800; }
+.skip-button { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid rgba(255,157,61,.45); background: rgba(255,157,61,.1); color: #ffd2a5; border-radius: 8px; font-size: 11px; font-weight: 800; }
+.secondary-button:disabled, .skip-button:disabled { opacity: .45; cursor: not-allowed; }
+.operator-control { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 18px; color: #90a2bd; font-size: 9px; }
+.operator-control button { padding: 6px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; color: #d5dfed; background: transparent; font-size: 9px; font-weight: 800; }
 .draw-required { display: grid; justify-items: center; padding: 22px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.04); text-align: center; }
 .draw-required > span { font-size: 34px; color: var(--lime); }
 .draw-required strong { margin-top: 7px; font-size: 12px; }
@@ -92,6 +96,7 @@ button { cursor: pointer; }
 .player-table { margin-top: 18px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .player-row { width: 100%; min-height: 47px; display: grid; grid-template-columns: minmax(190px, 1fr) 55px 58px 55px 25px; align-items: center; padding: 6px 12px; border: 0; border-bottom: 1px solid #e8ebf0; background: white; color: #657087; text-align: left; font-size: 11px; }
 button.player-row:hover { background: #f7faff; }
+button.player-row:disabled { cursor: not-allowed; opacity: .58; }
 .player-row:last-child { border-bottom: 0; }
 .player-row.table-head { min-height: 34px; background: #f5f7fa; color: #8590a0; font-size: 9px; font-weight: 850; letter-spacing: .6px; text-transform: uppercase; }
 .player-row.selected { position: relative; z-index: 1; outline: 2px solid var(--blue); background: #f2f7ff; }
@@ -119,6 +124,19 @@ button.player-row:hover { background: #f7faff; }
 .section-heading.compact h2 { font-size: 18px; }
 .section-heading.compact button { border: 0; background: transparent; color: var(--blue); font-size: 10px; font-weight: 850; }
 .recent-list { margin-top: 16px; }
+.recovery-label { margin: 0 0 7px; color: #8792a2; font-size: 9px; font-weight: 900; letter-spacing: .8px; text-transform: uppercase; }
+.makeup-list { margin-top: 16px; padding: 12px; border-radius: 8px; background: #fff7ec; }
+.makeup-list button { width: 100%; display: grid; grid-template-columns: 34px 1fr 28px; align-items: center; gap: 7px; padding: 9px 0; border: 0; border-bottom: 1px solid #f4dfc4; color: var(--ink); background: transparent; text-align: left; }
+.makeup-list button:last-child { border-bottom: 0; }
+.makeup-list button.active { margin: 0 -6px; width: calc(100% + 12px); padding-left: 6px; padding-right: 6px; border-radius: 5px; background: #ffe6c3; }
+.makeup-list button span { color: #a06d2a; font-family: var(--font-geist-mono); font-size: 9px; }
+.makeup-list button strong { font-size: 10px; }
+.makeup-list button small { color: #9d6a25; font-size: 8px; font-weight: 900; }
+.no-makeups { margin: 0; color: #956d3a; font-size: 10px; }
+.audit-list { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.audit-list > div { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; color: #7e8999; font-size: 9px; }
+.audit-list strong { overflow: hidden; color: #536177; font-size: 9px; font-weight: 750; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.audit-list span { flex: 0 0 auto; color: #99a3b0; }
 .recent-pick { display: grid; grid-template-columns: 35px 1fr 32px; align-items: center; gap: 9px; padding: 12px 0; border-bottom: 1px solid #e8ebf0; }
 .pick-number { color: #8b96a7; font-family: var(--font-geist-mono); font-size: 9px; }
 .recent-pick div strong { display: block; color: var(--ink); font-size: 11px; }
@@ -171,7 +189,7 @@ button.player-row:hover { background: #f7faff; }
 
 @media (max-width: 1180px) {
   .operator-grid { grid-template-columns: 230px 1fr; }
-  .recent-panel { display: none; }
+  .recent-panel { display: block; grid-column: 1 / -1; }
   .draft-grid { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
 }
 

@@ -84,6 +84,30 @@ export const draftDraws = sqliteTable(
   ],
 );
 
+export const draftSkips = sqliteTable(
+  "draft_skips",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    divisionId: text("division_id").notNull(),
+    teamId: text("team_id").notNull(),
+    round: integer("round").notNull(),
+    pickNumber: integer("pick_number").notNull(),
+    status: text("status").notNull().default("open"),
+    filledPickId: integer("filled_pick_id"),
+    createdAt: text("created_at").notNull(),
+    resolvedAt: text("resolved_at"),
+  },
+  (table) => [
+    uniqueIndex("draft_skips_slot_idx").on(table.divisionId, table.round, table.pickNumber),
+  ],
+);
+
+export const draftOperators = sqliteTable("draft_operators", {
+  divisionId: text("division_id").primaryKey(),
+  operatorName: text("operator_name").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const auditEvents = sqliteTable("audit_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   divisionId: text("division_id").notNull(),
