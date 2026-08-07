@@ -117,6 +117,7 @@ function readImportedPlayers(csv: string): ImportedPlayer[] {
     }
     return { id: suppliedId ? `import-${suppliedId}` : `import-${index + 1}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, firstName: first, lastName: last, position, nflTeam, adp };
   });
+  if (players.length > 1500) throw new Error("Import up to 1,500 players at a time.");
   if (new Set(players.map((player) => player.id)).size !== players.length) throw new Error("Each imported player needs a unique Player ID.");
   return players;
 }
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
     } else if (action === "importPlayers") {
       const hasPicks = await db.prepare("SELECT 1 AS found FROM draft_picks LIMIT 1").first<{ found: number }>();
       if (hasPicks) return Response.json({ error: "The player pool is locked after the first confirmed pick." }, { status: 409 });
-      const csv = cleanText(body.csv, 250000);
+      const csv = cleanText(body.csv, 1000000);
       const players = readImportedPlayers(csv);
       const now = new Date().toISOString();
       await db.batch([

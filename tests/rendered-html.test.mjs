@@ -97,4 +97,5 @@ test("includes a guarded commissioner CSV player import", async () => {
   assert.match(commissionerApi, /readImportedPlayers/);
   assert.match(commissionerApi, /player pool is locked after the first confirmed pick/i);
   assert.match(commissionerApi, /players\.imported/);
+  assert.match(commissionerApi, /1,500 players/);
 });

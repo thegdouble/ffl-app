@@ -183,7 +183,7 @@ export function CommissionerSetup() {
             <>
               <div className="import-explainer"><strong>One pool, two independent drafts</strong><p>Paste a CSV exported from your ranking service. The same NFL player is available once in Liquor and once in Poker, and ADP is shown only to operators.</p></div>
               <label className="csv-field"><span>Player CSV</span><textarea value={playerCsv} onChange={(event) => setPlayerCsv(event.target.value)} placeholder={'DS Rank,Player,Team,Roster Position,ADP\n1,Puka Nacua,LAR,WR1,6'} /><small>Required columns: Player, Team, Roster Position (or Position), and ADP. Player ID is used when supplied.</small></label>
-              <div className="import-summary"><strong>{playerCsv.trim() ? `${Math.max(0, playerCsv.trim().split(/\r?\n/).length - 1)} rows ready to validate` : "Paste your CSV to begin"}</strong><span>Importing replaces the current prototype player list and is recorded in the draft audit.</span></div>
+              <div className="import-summary"><strong>{playerCsv.trim() ? `${Math.max(0, playerCsv.trim().split(/\r?\n/).length - 1)} rows ready to validate` : "Paste your CSV to begin"}</strong><span>Imports support up to 1,500 players and replace the current prototype list.</span></div>
               <div className="setup-actions"><p>Review the source before importing. This cannot run after the first pick.</p><button className="primary-action" disabled={busy !== "" || !playerCsv.trim()} onClick={() => void send("importPlayers", { csv: playerCsv }, "Player pool imported for both divisions.")}>{busy === "importPlayers" ? "Importing…" : "Validate and import players"}</button></div>
             </>
           )}
